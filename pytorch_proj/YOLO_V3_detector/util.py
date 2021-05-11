@@ -52,3 +52,63 @@ def predict_transform(prediction, inp_dim, anchors, num_classes, CUDA=True):
     prediction[:,:,:4] *= stride
 
     return prediction
+
+
+def unique(tensor):
+    tensor_np = tensor.cpu().numpy()
+    unique_np = np.unique(tensor_np)
+    unique_tensor = torch.from_numpy(unique_np)
+
+    tensor_res = tensor.new(unique_tensor.shape)
+    tensor_res.copy_(unique_tensor)
+    return tensor_res
+
+
+def write_results(prediction, confidence, num_classes, nms_conf=.4):
+    """
+
+    :param prediction: |
+    :param confidence: obj score threshold
+    :param num_classes: |
+    :param nms_conf: NMS IoU threshold
+    :return:
+    """
+    conf_mask = (prediction[:,:,4]>confidence).float().unsequeeze(2)
+    prediction = prediction*conf_mask
+
+    # transform ceter-x, etc. to top-left, etc.
+    box_corner = prediction.new(prediction.shape)
+    box_corner[:,:,0] = (prediction[:,:,0] - prediction[:,:,2]/2)
+    box_corner[:,:,1] = (prediction[:,:,1] - prediction[:,:,3]/2)
+    box_corner[:,:,2] = (prediction[:,:,0] + prediction[:,:,2]/2)
+    box_corner[:,:,3] = (prediction[:,:,1] + prediction[:,:,3]/2)
+    prediction[:,:,:4] = box_corner[:,:,:4]
+
+    # the gt varies from img to img, so we here loop over dim-0(batch size)
+    batch_size= prediction.size[0]
+    write = False
+    for ind in range(batch_size):
+        # 1 img at a time
+        image_pred = prediction[ind]
+        # max_conf -- max number; max_conf_score -- max index
+        max_conf, max_conf_score = torch.max(image_pred[:,5:5+num_classes], 1)
+        max_conf = max_conf.float().unsqueeze(1)
+        max_conf_score = max_conf_score.float().unsqueeze(1)
+        seq = [image_pred[:,:,:5], max_conf, max_conf_score]
+        img_pred = torch.cat(seq, 1)
+
+        non_zero_ind = (torch.nonzero(image_pred[:, 4]))
+        # try-catch block for pytorch version bugs(since .4 and later will be OK)
+        try:
+            image_pred_ = image_pred[non_zero_ind.squeeze(), :].view(-1, 7)
+        except:
+            continue
+        if image_pred_.shape == 0:
+            continue
+
+        # index(-1) stores the class index
+        # unique function gives an tensor of 1-dim of the classes detected
+        img_classes = unique(image_pred_[:, -1])
+
+        for cls in img_classes:
+            # perform NMS classwise

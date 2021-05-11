@@ -4,6 +4,8 @@ import torch.nn.functional as F
 import numpy as np
 from util import *
 
+# just ignore this line
+
 def get_test_inpuy():
     img = cv2.imread("dog-cycle-car.png")
     img = cv2.resize(img, (416, 416))
@@ -28,12 +30,12 @@ class DetectionLayer(nn.Module):
 class Darknet(nn.Module):
     def __init__(self, cfgfile):
         super(Darknet, self).__init__()
-        self.bolcks = parse_cfg(cfgfile)
-        self.net_info, self.module_list = create_modules(self.bolcks)
+        self.blocks = parse_cfg(cfgfile)
+        self.net_info, self.module_list = create_modules(self.blocks)
 
     def forward(self, x, cuda):
         print(x.shape)
-        modules = self.bolcks[1:]
+        modules = self.blocks[1:]
         outputs = {}
         write = 0
         for i, module in enumerate(modules):
@@ -73,6 +75,86 @@ class Darknet(nn.Module):
                     # print(detections.shape)
             outputs[i] = x
         return detections
+
+    def load_weights(self, weightfile):
+        fp = open(weightfile, "rb")
+        # the first 5 values are the header information
+        # 1. major version number
+        # 2. minor version number
+        # 3. subversion number
+        # 4,5 images seen by the network(during training)
+        header = np.fromfile(fp, dtype=np.int32, count=5)
+        self.header = torch.from_numpy(header)
+        self.seen = self.header[3]
+        weights = np.fromfile(fp, dtype=np.float32)
+        ptr = 0
+        for i in range(len(self.module_list)):
+            module_type = self.blocks[i+1]["type"]
+            if module_type == "convolutional":
+
+                """
+                if the conv block has bn, then bn has biases, weights, running_mean and 
+                running_var; 
+                else the conv block has no bn, then conv has biases
+                """
+                model = self.module_list[i]
+                conv = model[0]
+                # load the biases first( of bn or conv)
+                try:
+                    batch_normalize = int(self.blocks[i+1]["batch_normalize"])
+                except:
+                    batch_normalize = 0
+                if batch_normalize:
+                    bn = model[1]
+                    # get the number of bn layer
+                    num_bn_biases = bn.bias.numel()
+
+                    # load the weights by ptr
+                    bn_biases = torch.from_numpy(weights[ptr:ptr+num_bn_biases])
+                    ptr+= num_bn_biases
+
+                    bn_weights = torch.from_numpy(weights[ptr:ptr+num_bn_biases])
+                    ptr+= num_bn_biases
+
+                    bn_running_mean = torch.from_numpy(weights[ptr:ptr+num_bn_biases])
+                    ptr+= num_bn_biases
+
+                    bn_running_var = torch.from_numpy(weights[ptr:ptr+num_bn_biases])
+                    ptr+=num_bn_biases
+
+                    # cast loaded biases and weights into the dims of model weights(view_as)
+                    bn_biases = bn_biases.view_as(bn.bias.data)
+                    bn_weights = bn_weights.view_as(bn.bias.data)
+                    bn_running_mean = bn_running_mean.view_as(bn.bias.data)
+                    bn_running_var = bn_running_var.view_as(bn.bias.data)
+
+                    # copy the loaded data to model(copy_)
+                    bn.bias.data.copy_(bn_biases)
+                    bn.weight.data.copy_(bn_weights)
+                    bn.running_mean.copy_(bn_running_mean)
+                    bn.running_var.copy_(bn_running_var)
+                else:
+                    # number of biases
+                    num_biases = conv.bias.numel()
+
+                    #load the weights
+                    conv_biases = torch.from_numpy(weights[ptr:ptr+num_biases])
+                    ptr += num_biases
+
+                    # cast into same dims
+                    conv_biases = conv_biases.view_as(conv.bias.data)
+
+                    # copy
+                    conv.bias.data.copy_(conv_biases)
+
+                # load the conv weights
+                num_weights = conv.weight.numel()
+                # load weights
+                conv_weights = torch.from_numpy(weights[ptr:ptr+num_weights])
+                # cast dim
+                conv_weights = conv_weights.view_as(conv.weight.data)
+                # copy_
+                conv.weight.data.copy_(conv_weights)
 
 
 def parse_cfg(cfg_file):
@@ -199,8 +281,14 @@ def create_modules(blocks):
     return (net_info, module_list)
 
 
-model = Darknet("cfg/yolo_v3.cfg")
-model = model.cuda()
-inp = get_test_inpuy()
-pred = model(inp, torch.cuda.is_available())
-print(pred.shape)
+# # use the random weights to predict an output
+# model = Darknet("cfg/yolo_v3.cfg")
+# model = model.cuda()
+# inp = get_test_inpuy()
+# pred = model(inp, torch.cuda.is_available())
+# print(pred.shape)
+
+# # load weights from file
+# model = Darknet("cfg/yolo_v3.cfg")
+# model.load_weights("yolov3.weights")
+# print(model.module_list[0][0].weight.data)
