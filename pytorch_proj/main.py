@@ -22,30 +22,42 @@
 # # x = (a[:,1]>2).float().unsqueeze(1)
 # x = (a[:,1]>2).unsqueeze(1)
 # print(x)
-import numpy
-import numpy as np
-import torch
+# import numpy
+# import numpy as np
+# import torch
 
-# a = torch.from_numpy(np.arange(10).reshape((5,2)))
-# a = a.view((2,5))
-# print(a)
-# a = a.squeeze(1)
-# print(a)
-
-# a = torch.tensor([.1, .2, .3])
-# print(a)
-# b = a.new(a.shape)
-
-# a = torch.arange(9)
-# a = a.view(3,3)
-# b = a[:,0:1]
-# print(b)
-# c = a[:, 0]
+# # a = torch.from_numpy(np.arange(10).reshape((5,2)))
+# # a = a.view((2,5))
+# # print(a)
+# # a = a.squeeze(1)
+# # print(a)
+#
+# # a = torch.tensor([.1, .2, .3])
+# # print(a)
+# # b = a.new(a.shape)
+#
+# # a = torch.arange(9)
+# # a = a.view(3,3)
+# # b = a[:,0:1]
+# # print(b)
+# # c = a[:, 0]
+# # print(c)
+# # a = torch.tensor([])
+# # c = torch.arange(27)
+# # c = c.view(3,3,3)
+# # print(a.shape)
+# # d = c[a, :]
+# # print(d)
+# # print(d.shape)
+# a = torch.tensor([.5])
+# b = torch.arange(10)/10
+# c = torch.max(a, b)
 # print(c)
-a = torch.tensor([])
-c = torch.arange(27)
-c = c.view(3,3,3)
-print(a.shape)
-d = c[a, :]
-print(d)
-print(d.shape)
+import time
+import pickle
+
+
+with open("YOLO_V3_detector/pallete", "rb") as f:
+    colors = pickle.load(f)
+
+print(colors)
