@@ -1,0 +1,2 @@
+https://github.com/zergtant/pytorch-handbook pytorch指南
+http://www.yaersen.com/x.html google学术 镜像

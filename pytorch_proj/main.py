@@ -56,8 +56,15 @@
 import time
 import pickle
 
+import torch
+import torch.nn as nn
+import torchvision
 
-with open("YOLO_V3_detector/pallete", "rb") as f:
-    colors = pickle.load(f)
 
-print(colors)
+a = torch.Tensor([2])
+a.requires_grad=True
+b = torch.Tensor([3])
+b.requires_grad=True
+z = a*b
+z.backward()
+print(a.grad)
